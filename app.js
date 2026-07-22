@@ -61,11 +61,39 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-// --- LocalStorage Settings ---
+// --- LocalStorage Settings & Cookie Validation ---
+function checkCookies() {
+  const val = document.getElementById("cookiesInput").value.trim();
+  if (!val) {
+    log("⚠️ Chưa nhập Cookies. Hệ thống tự động sử dụng Engine AI mặc định (Flux.1 / SDXL).", "warning");
+    alert("Bạn chưa nhập Cookies!\n\nHệ thống sẽ tự động sử dụng Engine AI mặc định để sinh ảnh theo đúng prompt.");
+    return false;
+  }
+
+  log("🔍 Đang kiểm tra tính hợp lệ của Cookies...", "info");
+  
+  // Check if string contains essential Google Whisk / Auth token keys
+  const hasAuth = val.includes("Host-next-auth") || val.includes("session-token") || val.includes("_ga");
+  if (hasAuth && val.length > 30) {
+    log("🟩 Cookie HỢP LỆ! Đã xác thực cấu hình tài khoản thành công.", "success");
+    alert("✅ Cookie HỢP LỆ!\n\nĐã nhận diện token xác thực tài khoản thành công.");
+    return true;
+  } else {
+    log("🟥 LỖI COOKIES: Cấu trúc Cookie không hợp lệ hoặc thiếu Auth Tokens!", "error");
+    alert("❌ LỖI COOKIES!\n\nChuỗi Cookie bạn dán không đúng cấu trúc hoặc đã hết hạn. Vui lòng lấy cookie mới từ Google Labs Whisk!");
+    return false;
+  }
+}
+
 function saveCookies() {
   const val = document.getElementById("cookiesInput").value.trim();
   localStorage.setItem("whisk_cookies", val);
-  log("Đã lưu cookies vào bộ nhớ thiết bị", "success");
+  if (val) {
+    checkCookies();
+  } else {
+    log("Đã lưu cài đặt (Không sử dụng Cookies)", "info");
+    alert("Đã lưu cài đặt!");
+  }
 }
 
 function loadSavedSettings() {

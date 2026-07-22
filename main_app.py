@@ -8,6 +8,7 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
+from whisk_api import WhiskAPIClient
 from batch_generator import BatchProcessor
 
 # ==============================================================================
@@ -154,11 +155,16 @@ class WhiskTkinterApp(tk.Tk):
 
         tk.Label(sett_frame, text="🔑 Cookies:", font=("Segoe UI", 9, "bold"), fg=TEXT_MAIN, bg=BG_CARD).pack(anchor="w")
         self.txt_cookies = tk.Text(sett_frame, bg=BG_INPUT, fg=TEXT_MAIN, height=3, relief="solid", bd=1)
-        # Ô cookie để trống mặc định để người dùng dán cookie tài khoản của mình khi cần
         self.txt_cookies.pack(fill="x", pady=(2, 4))
 
-        btn_save_cookies = tk.Button(sett_frame, text="💾 Lưu Cookies", bg=COLOR_BLUE, fg="#ffffff", font=("Segoe UI", 9, "bold"), relief="flat", command=self.save_cookies)
-        btn_save_cookies.pack(fill="x", pady=(0, 6))
+        cookie_btns_frame = tk.Frame(sett_frame, bg=BG_CARD)
+        cookie_btns_frame.pack(fill="x", pady=(0, 6))
+
+        btn_save_cookies = tk.Button(cookie_btns_frame, text="💾 Lưu Cookies", bg=COLOR_BLUE, fg="#ffffff", font=("Segoe UI", 9, "bold"), relief="flat", command=self.save_cookies)
+        btn_save_cookies.pack(side="left", fill="x", expand=True, padx=(0, 2))
+
+        btn_check_cookies = tk.Button(cookie_btns_frame, text="🔍 Kiểm tra Cookies", bg=COLOR_GOLD, fg="#ffffff", font=("Segoe UI", 9, "bold"), relief="flat", command=self.check_cookies)
+        btn_check_cookies.pack(side="right", fill="x", expand=True, padx=(2, 0))
 
         # Grid settings
         grid_f = tk.Frame(sett_frame, bg=BG_CARD)
@@ -337,9 +343,36 @@ class WhiskTkinterApp(tk.Tk):
     def clear_ref(self, key):
         self.ref_widgets[key][0].delete(0, "end")
 
+    def check_cookies(self):
+        cookies = self.txt_cookies.get("1.0", "end").strip()
+        if not cookies:
+            self.log("⚠️ Chưa nhập Cookies. Phần mềm sẽ tự động dùng Engine AI mặc định.", "warning")
+            messagebox.showwarning("Chưa nhập Cookies", "Bạn chưa nhập Cookies!\n\nHệ thống sẽ tự động sử dụng Engine AI mặc định (Flux.1 / SDXL) để sinh ảnh theo đúng prompt.")
+            return False
+
+        self.log("🔍 Đang kiểm tra tính hợp lệ của Cookies...", "info")
+        client = WhiskAPIClient()
+        is_valid, msg = client.validate_cookies(cookies)
+
+        if is_valid:
+            self.log(f"🟩 {msg}", "success")
+            messagebox.showinfo("Cookie Hợp Lệ", f"✅ {msg}")
+            return True
+        else:
+            self.log(f"🟥 {msg}", "error")
+            messagebox.showerror("Lỗi Cookies", f"❌ {msg}")
+            return False
+
     def save_cookies(self):
-        self.log("🟨 Đã lưu cookies phiên đăng nhập")
-        messagebox.showinfo("Thành công", "Đã lưu Cookies!")
+        cookies = self.txt_cookies.get("1.0", "end").strip()
+        if not cookies:
+            self.log("🟨 Đã lưu cấu hình (Không sử dụng Cookies).", "info")
+            messagebox.showinfo("Thông báo", "Đã lưu cài đặt! Phần mềm sẽ tự động sinh ảnh bằng Engine AI mặc định.")
+            return
+
+        is_valid = self.check_cookies()
+        if is_valid:
+            self.log("🟩 Đã lưu Cookies thành công vào phiên làm việc.", "success")
 
     def browse_outdir(self):
         d = filedialog.askdirectory(initialdir="./images")
@@ -425,11 +458,19 @@ class WhiskTkinterApp(tk.Tk):
             messagebox.showwarning("Cảnh báo", "Vui lòng nhập danh sách prompt trước!")
             return
 
+        cookies = self.txt_cookies.get("1.0", "end").strip()
+        if cookies:
+            client = WhiskAPIClient()
+            is_valid, msg = client.validate_cookies(cookies)
+            if not is_valid:
+                res = messagebox.askyesno("Lỗi Cookies", f"❌ {msg}\n\nBạn có muốn tiếp tục sinh ảnh bằng Engine AI mặc định (Flux.1 / SDXL) không?")
+                if not res:
+                    return
+
         self.is_running = True
         self.btn_start.config(state="disabled")
         self.btn_stop.config(state="normal")
 
-        cookies = self.txt_cookies.get("1.0", "end").strip()
         outdir = self.entry_outdir.get().strip() or "./images"
         threads_cnt = int(self.spin_threads.get() or 10)
         ratio = self.cmb_ratio.get()

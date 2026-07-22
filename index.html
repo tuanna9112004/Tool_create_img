@@ -113,9 +113,14 @@
             <div class="form-group full-width">
               <span class="form-label"><i class="fa-solid fa-cookie"></i> Cookies:</span>
               <textarea class="input-text" id="cookiesInput" placeholder="Dán Cookies xác thực tài khoản Google Whisk của bạn vào đây (nếu có)..."></textarea>
-              <button class="btn btn-secondary" style="width: 100%; margin-top: 4px; background: #0284c7;" onclick="saveCookies()">
-                <i class="fa-solid fa-floppy-disk"></i> Lưu Cookies
-              </button>
+              <div style="display: flex; gap: 6px; margin-top: 4px;">
+                <button class="btn btn-secondary" style="flex: 1; background: #0284c7;" onclick="saveCookies()">
+                  <i class="fa-solid fa-floppy-disk"></i> Lưu Cookies
+                </button>
+                <button class="btn btn-gold" style="flex: 1;" onclick="checkCookies()">
+                  <i class="fa-solid fa-magnifying-glass"></i> Kiểm tra Cookies
+                </button>
+              </div>
             </div>
 
             <!-- Threads -->

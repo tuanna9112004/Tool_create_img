@@ -18,8 +18,11 @@ class WhiskAPIClient:
     
     DEFAULT_HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+        "Accept": "application/json, text/plain, */*",
         "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Content-Type": "application/json",
+        "Origin": "https://labs.google",
+        "Referer": "https://labs.google/fx/tools/whisk"
     }
 
     def __init__(self, cookies_str=None, timeout=90):
@@ -33,7 +36,8 @@ class WhiskAPIClient:
 
     def set_cookies(self, cookies_str):
         """Parse cookie string (key=value; ...) into session cookies"""
-        if not cookies_str:
+        if not cookies_str or not cookies_str.strip():
+            self.has_cookies = False
             return
         
         cookie_dict = {}
@@ -46,6 +50,36 @@ class WhiskAPIClient:
         if cookie_dict:
             self.session.cookies.update(cookie_dict)
             self.has_cookies = True
+
+    def validate_cookies(self, cookies_str=None):
+        """
+        Validate cookie format & test connection to Google Whisk API.
+        Returns tuple: (is_valid: bool, message: str)
+        """
+        if cookies_str is not None:
+            self.set_cookies(cookies_str)
+            
+        if not self.has_cookies:
+            return False, "Chưa nhập Cookies. Vui lòng dán chuỗi Cookies xác thực!"
+
+        try:
+            # Send verification request to Google Labs Whisk portal
+            res = self.session.get("https://labs.google/fx/tools/whisk", timeout=12)
+            
+            if res.status_code == 200:
+                # Check for session auth tokens
+                cookie_names = list(self.session.cookies.keys())
+                auth_tokens = [c for c in cookie_names if "auth" in c.lower() or "session" in c.lower() or "_ga" in c.lower()]
+                
+                if auth_tokens:
+                    return True, f"Cookie HỢP LỆ! Đã xác thực phiên làm việc thành công ({len(auth_tokens)} tokens nhận diện)."
+                return True, "Cookie HỢP LỆ! Đã kết nối thành công với Google Labs Whisk."
+            elif res.status_code in [401, 403]:
+                return False, f"LỖI COOKIES (HTTP {res.status_code}): Cookie đã hết hạn hoặc không có quyền truy cập tài khoản Google!"
+            else:
+                return False, f"Lỗi phản hồi từ Google Server (HTTP {res.status_code})."
+        except Exception as e:
+            return False, f"Lỗi kết nối kiểm tra Cookies: {e}"
 
     def encode_image_to_base64(self, image_path):
         """Encode local image file to base64 string"""
@@ -168,7 +202,6 @@ class WhiskAPIClient:
                     f.write(img_data)
                 return True
             else:
-                # Stream download image bytes from AI engine URL with generous 90s timeout
                 res = self.session.get(image_url_or_b64, timeout=self.timeout, stream=True)
                 if res.status_code == 200:
                     with open(output_path, "wb") as f:
