@@ -1,4 +1,2 @@
 ﻿id,prompt,status,file_path,error,timestamp
-1,công chúa,error,,Lỗi lưu file ảnh,2026-07-22 09:49:20
-2,hoàng tử,success,./images\002_hoang_tu_1d19.png,,2026-07-22 09:49:03
-3,siêu nhân,error,,Lỗi lưu file ảnh,2026-07-22 09:51:18
+1,"tạo ảnh cầu thủ ronaldo , ảnh thẻ bài",success,./images\001_cau_thu_ronaldo_anh_the_bai_069f.png,,2026-07-22 09:54:08

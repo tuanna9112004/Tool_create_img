@@ -16,9 +16,9 @@ class WhiskAPIClient:
     WHISK_URL = "https://labs.google/fx/api/whisk/generate"
     
     AI_PROVIDERS = [
+        "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true&model=flux",
         "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true",
-        "https://gen.pollinations.ai/image/{prompt}?width={w}&height={h}&seed={seed}&nologo=true",
-        "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true&model=turbo"
+        "https://gen.pollinations.ai/image/{prompt}?width={w}&height={h}&seed={seed}&nologo=true"
     ]
     
     DEFAULT_HEADERS = {
@@ -92,46 +92,61 @@ class WhiskAPIClient:
         except Exception:
             return None
 
-    def translate_prompt_if_needed(self, prompt):
-        """Enhance prompt text for AI generator models"""
-        if not prompt:
-            return "beautiful art"
-        
-        clean_p = prompt.strip()
-        for prefix in ["tạo ảnh", "vẽ ảnh", "tạo hình ảnh", "hãy tạo", "tạo giúp tôi", "vẽ"]:
-            if clean_p.lower().startswith(prefix):
-                clean_p = clean_p[len(prefix):].strip()
-
-        vi_en = {
-            "cô gái": "a girl",
-            "xinh đẹp": "beautiful, gorgeous",
-            "đang ăn": "eating",
-            "kem": "ice cream",
-            "siêu nhân": "superhero",
-            "công chúa": "princess",
-            "hoàng tử": "prince",
-            "bãi biển": "beach",
-            "phòng khách": "living room",
-            "xe hơi": "supercar",
-            "mèo": "cute cat",
-            "chó": "cute dog",
-            "phong cảnh": "landscape",
-            "hiện đại": "modern",
-            "chân thực": "photorealistic"
-        }
-        
-        lower_p = clean_p.lower()
-        translated_parts = []
-        for vi, en in vi_en.items():
-            if vi in lower_p:
-                translated_parts.append(en)
-                
-        if translated_parts:
-            enhanced = f"{clean_p}, {', '.join(translated_parts)}, highly detailed, photorealistic, 8k resolution"
-        else:
-            enhanced = f"{clean_p}, highly detailed, photorealistic, 8k resolution"
+    def translate_to_english(self, text):
+        """
+        Automatically translates Vietnamese prompt to English using Google Translate.
+        Ensures AI models (Flux.1 / SDXL) understand prompt semantics 100% accurately.
+        """
+        if not text or not text.strip():
+            return text
             
-        return enhanced
+        clean_text = text.strip()
+        
+        # Check if text contains non-ASCII (Vietnamese diacritics)
+        if any(ord(c) > 127 for c in clean_text) or any(w in clean_text.lower() for w in ["tao anh", "ve anh", "co gai", "xinh dep"]):
+            try:
+                url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q={urllib.parse.quote(clean_text)}"
+                res = requests.get(url, timeout=4)
+                if res.status_code == 200:
+                    data = res.json()
+                    translated = "".join([item[0] for item in data[0] if item[0]])
+                    if translated:
+                        return translated.strip()
+            except Exception:
+                pass
+                
+        return clean_text
+
+    def build_perfect_prompt(self, prompt, subject_prompt=None, scene_prompt=None, style_prompt=None):
+        """
+        Constructs a clean, photorealistic, highly detailed prompt for AI image models.
+        """
+        # Translate main prompt to English
+        en_prompt = self.translate_to_english(prompt)
+        
+        # Remove filler instruction words
+        for prefix in ["create a photo of", "create an image of", "draw a picture of", "make a photo of", "make an image of", "photo of", "image of"]:
+            if en_prompt.lower().startswith(prefix):
+                en_prompt = en_prompt[len(prefix):].strip()
+
+        parts = [en_prompt]
+        
+        if subject_prompt and subject_prompt.strip():
+            en_subj = self.translate_to_english(subject_prompt.strip())
+            parts.append(f"subject: {en_subj}")
+
+        if scene_prompt and scene_prompt.strip():
+            en_scene = self.translate_to_english(scene_prompt.strip())
+            parts.append(f"scene: {en_scene}")
+
+        if style_prompt and style_prompt.strip():
+            en_style = self.translate_to_english(style_prompt.strip())
+            parts.append(f"style: {en_style}")
+
+        # Add quality boosters
+        full_text = ", ".join(parts)
+        perfect_prompt = f"{full_text}, masterpiece, highly detailed, photorealistic, 8k resolution, professional photography, vivid colors"
+        return perfect_prompt
 
     def parse_whisk_response(self, data):
         """Helper to extract image URL or Base64 from any Google Whisk JSON schema"""
@@ -158,15 +173,9 @@ class WhiskAPIClient:
     def generate_image(self, prompt, aspect_ratio="16:9", subject_path=None, subject_prompt=None, 
                        scene_path=None, scene_prompt=None, style_path=None, style_prompt=None, retries=2):
         """
-        Generates a REAL AI image based on the exact user prompt text.
+        Generates a REAL AI image matching the exact user prompt text.
         """
-        prompt_parts = [prompt]
-        if subject_prompt: prompt_parts.append(f"subject: {subject_prompt}")
-        if scene_prompt: prompt_parts.append(f"scene: {scene_prompt}")
-        if style_prompt: prompt_parts.append(f"style: {style_prompt}")
-        
-        full_prompt = ", ".join([p for p in prompt_parts if p])
-        enhanced_prompt = self.translate_prompt_if_needed(full_prompt)
+        perfect_prompt = self.build_perfect_prompt(prompt, subject_prompt, scene_prompt, style_prompt)
 
         dim_map = {
             "Landscape (16:9)": (1280, 720),
@@ -181,7 +190,7 @@ class WhiskAPIClient:
             for attempt in range(retries):
                 try:
                     payload = {
-                        "prompt": full_prompt,
+                        "prompt": perfect_prompt,
                         "aspectRatio": aspect_ratio,
                         "references": {}
                     }
@@ -201,8 +210,8 @@ class WhiskAPIClient:
                 except Exception:
                     pass
 
-        # Attempt 2: Multi-provider Real AI Generator
-        encoded = urllib.parse.quote(enhanced_prompt)
+        # Attempt 2: Real AI Image Generator via Flux.1 / SDXL Engine
+        encoded = urllib.parse.quote(perfect_prompt)
         seed = random.randint(1000000, 9999999)
         provider_template = random.choice(self.AI_PROVIDERS)
         real_ai_url = provider_template.format(prompt=encoded, w=width, h=height, seed=seed)
@@ -211,7 +220,7 @@ class WhiskAPIClient:
             "success": True,
             "image_url": real_ai_url,
             "image_b64": None,
-            "enhanced_prompt": enhanced_prompt,
+            "perfect_prompt": perfect_prompt,
             "width": width,
             "height": height
         }
@@ -238,16 +247,17 @@ class WhiskAPIClient:
             except Exception:
                 return False
 
+        # Stagger parallel threads slightly
+        time.sleep(random.uniform(0.1, 0.6))
+
         current_url = image_url_or_b64
 
         for attempt in range(retries):
             try:
-                # Rotate seed & provider on retry
-                if attempt > 0:
+                if attempt > 0 and "seed=" in current_url:
                     new_seed = random.randint(1000000, 9999999)
-                    if "seed=" in current_url:
-                        parts = current_url.split("seed=")
-                        current_url = parts[0] + f"seed={new_seed}" + (parts[1][parts[1].find("&"):] if "&" in parts[1] else "")
+                    parts = current_url.split("seed=")
+                    current_url = parts[0] + f"seed={new_seed}" + (parts[1][parts[1].find("&"):] if "&" in parts[1] else "")
 
                 headers = {
                     "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/{120 + attempt * 3}.0.0.0 Safari/537.36",
