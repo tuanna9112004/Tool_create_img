@@ -8,6 +8,8 @@ from datetime import datetime
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 
+from batch_generator import BatchProcessor
+
 # ==============================================================================
 # COLOR PALETTE & STYLES (Light & Blue Replica Theme from Screenshot)
 # ==============================================================================
@@ -40,8 +42,8 @@ class WhiskTkinterApp(tk.Tk):
             "Realistic photography of a sleek high-tech AI camera lens with soft studio lighting"
         ]
         self.statuses = ["Đang chờ"] * len(self.prompts)
+        self.processor = None
         self.is_running = False
-        self.stop_requested = False
 
         self.setup_styles()
         self.init_ui()
@@ -393,24 +395,30 @@ class WhiskTkinterApp(tk.Tk):
             self.log(f"🟨 Đã đồng bộ {len(lines)} prompts từ Text Editor")
 
     def import_file(self):
-        fn = filedialog.askopenfilename(filetypes=[("Text/CSV Files", "*.txt *.csv")])
+        fn = filedialog.askopenfilename(filetypes=[("Prompt Files", "*.csv *.txt *.json")])
         if fn:
-            with open(fn, "r", encoding="utf-8") as f:
-                lines = [l.strip() for l in f if l.strip()]
-            self.prompts = lines
-            self.statuses = ["Đang chờ"] * len(lines)
-            self.load_table_data()
-            self.log(f"🟩 Đã load {len(lines)} prompts từ file đã chọn")
+            try:
+                proc = BatchProcessor()
+                items = proc.load_prompts_from_file(fn)
+                self.prompts = [item["prompt"] for item in items]
+                self.statuses = ["Đang chờ"] * len(items)
+                self.load_table_data()
+                self.log(f"🟩 Đã import {len(items)} prompts từ file: {fn}")
+            except Exception as e:
+                messagebox.showerror("Lỗi Import", str(e))
 
     def export_file(self):
-        fn = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text Files", "*.txt")])
+        fn = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv"), ("Text Files", "*.txt")])
         if fn:
-            with open(fn, "w", encoding="utf-8") as f:
-                f.write("\n".join(self.prompts))
-            self.log(f"🟩 Đã lưu danh sách prompt ra {fn}")
+            with open(fn, "w", encoding="utf-8-sig", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["STT", "Prompt"])
+                for idx, p in enumerate(self.prompts):
+                    writer.writerow([idx + 1, p])
+            self.log(f"🟩 Đã xuất {len(self.prompts)} prompts ra file: {fn}")
 
     # --------------------------------------------------------------------------
-    # BATCH PROCESS ENGINE (MULTITHREADED)
+    # BATCH PROCESS ENGINE INTEGRATION (WHISK BACKEND AUTOMATION)
     # --------------------------------------------------------------------------
     def start_batch(self):
         if not self.prompts:
@@ -418,20 +426,42 @@ class WhiskTkinterApp(tk.Tk):
             return
 
         self.is_running = True
-        self.stop_requested = False
         self.btn_start.config(state="disabled")
         self.btn_stop.config(state="normal")
 
+        cookies = self.txt_cookies.get("1.0", "end").strip()
         outdir = self.entry_outdir.get().strip() or "./images"
-        os.makedirs(outdir, exist_ok=True)
+        threads_cnt = int(self.spin_threads.get() or 10)
+        ratio = self.cmb_ratio.get()
 
-        t = threading.Thread(target=self.run_batch_worker, args=(outdir,))
+        self.processor = BatchProcessor(
+            cookies_str=cookies,
+            output_dir=outdir,
+            threads=threads_cnt,
+            aspect_ratio=ratio
+        )
+
+        items = []
+        for idx, p in enumerate(self.prompts):
+            items.append({
+                "id": idx + 1,
+                "prompt": p,
+                "subject_path": self.ref_widgets["Subject"][0].get(),
+                "subject_prompt": self.ref_widgets["Subject"][1].get(),
+                "scene_path": self.ref_widgets["Scene"][0].get(),
+                "scene_prompt": self.ref_widgets["Scene"][1].get(),
+                "style_path": self.ref_widgets["Style"][0].get(),
+                "style_prompt": self.ref_widgets["Style"][1].get(),
+            })
+
+        t = threading.Thread(target=self.run_backend_worker, args=(items,))
         t.daemon = True
         t.start()
 
     def stop_batch(self):
-        self.stop_requested = True
-        self.log("⚠️ Đã dừng tiến trình bởi người dùng")
+        if self.processor:
+            self.processor.stop()
+            self.log("⚠️ Đã gửi lệnh DỪNG tiến trình Backend...", "warning")
 
     def retry_batch(self):
         for i in range(len(self.statuses)):
@@ -447,52 +477,37 @@ class WhiskTkinterApp(tk.Tk):
         else:
             messagebox.showinfo("Thông báo", "Không có prompt nào bị lỗi!")
 
-    def run_batch_worker(self, outdir):
-        total = len(self.prompts)
-        threads_cnt = int(self.spin_threads.get() or 10)
-        self.log(f"🟨 Bắt đầu sinh ảnh đa luồng ({threads_cnt} luồng)...")
+    def run_backend_worker(self, items):
+        def gui_log(msg, mtype):
+            self.after(0, lambda: self.log(msg, mtype))
 
-        for idx in range(total):
-            if self.stop_requested:
-                break
+        def gui_progress(completed, total, results):
+            pct = int((completed / total) * 100)
+            for r in results:
+                rid = r["id"] - 1
+                if 0 <= rid < len(self.statuses):
+                    if r["status"] == "success":
+                        self.statuses[rid] = "Thành công"
+                    elif r["status"] == "error":
+                        self.statuses[rid] = "Lỗi"
 
-            if self.statuses[idx] == "Thành công":
-                continue
-
-            self.statuses[idx] = "Đang chạy..."
+            self.after(0, lambda: self.update_progress_ui(pct, completed, total))
             self.after(0, self.load_table_data)
 
-            time.sleep(1.2)
-
-            if self.stop_requested:
-                break
-
-            if random.random() > 0.1:
-                self.statuses[idx] = "Thành công"
-                img_path = os.path.join(outdir, f"img_{idx+1}_{int(time.time())}.png")
-                with open(img_path, "w") as f:
-                    f.write(f"Sample generated image content for prompt: {self.prompts[idx]}")
-                self.log(f"🟩 Prompt #{idx + 1} thành công -> Saved: {img_path}")
-            else:
-                self.statuses[idx] = "Lỗi"
-                self.log(f"🟥 Prompt #{idx + 1} bị lỗi!")
-
-            pct = int(((idx + 1) / total) * 100)
-            self.after(0, lambda p=pct, c=idx+1, t=total: self.update_progress_ui(p, c, t))
-            self.after(0, self.load_table_data)
+        self.processor.run_batch(items, progress_callback=gui_progress, log_callback=gui_log)
 
         self.is_running = False
         self.after(0, self.on_batch_finished)
 
     def update_progress_ui(self, pct, current, total):
         self.pbar["value"] = pct
-        self.lbl_progress.config(text=f"Đang sinh ảnh {current}/{total} ({pct}%)")
+        self.lbl_progress.config(text=f"Đang sinh ảnh & tải về {current}/{total} ({pct}%)")
 
     def on_batch_finished(self):
         self.btn_start.config(state="normal")
         self.btn_stop.config(state="disabled")
         self.lbl_progress.config(text="Sẵn sàng")
-        self.log("🟩 HOÀN THÀNH TIẾN TRÌNH SINH ẢNH")
+        self.log("🟩 HOÀN THÀNH TIẾN TRÌNH AUTOMATION BACKEND")
 
 if __name__ == "__main__":
     app = WhiskTkinterApp()
