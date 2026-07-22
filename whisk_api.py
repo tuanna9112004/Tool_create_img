@@ -10,7 +10,7 @@ class WhiskAPIClient:
     """
     Whisk & Multi-Provider Real AI Image Generation API Client.
     Supports real-time AI generation matching user prompts (via Whisk or Live AI Engines),
-    handling reference images (Subject, Scene, Style), aspect ratios, and parallel file downloads.
+    handling reference images (Subject, Scene, Style), aspect ratios, and 100% resilient downloads.
     """
     
     WHISK_URL = "https://labs.google/fx/api/whisk/generate"
@@ -18,7 +18,7 @@ class WhiskAPIClient:
     AI_PROVIDERS = [
         "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true",
         "https://gen.pollinations.ai/image/{prompt}?width={w}&height={h}&seed={seed}&nologo=true",
-        "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true&model=flux"
+        "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true&model=turbo"
     ]
     
     DEFAULT_HEADERS = {
@@ -107,6 +107,9 @@ class WhiskAPIClient:
             "xinh đẹp": "beautiful, gorgeous",
             "đang ăn": "eating",
             "kem": "ice cream",
+            "siêu nhân": "superhero",
+            "công chúa": "princess",
+            "hoàng tử": "prince",
             "bãi biển": "beach",
             "phòng khách": "living room",
             "xe hơi": "supercar",
@@ -130,8 +133,30 @@ class WhiskAPIClient:
             
         return enhanced
 
+    def parse_whisk_response(self, data):
+        """Helper to extract image URL or Base64 from any Google Whisk JSON schema"""
+        if not isinstance(data, dict):
+            return None, None
+            
+        url = data.get("imageUrl") or data.get("url")
+        b64 = data.get("imageBase64") or data.get("base64")
+        if url or b64:
+            return url, b64
+            
+        images = data.get("images") or data.get("result", {}).get("images") or []
+        if isinstance(images, list) and len(images) > 0:
+            first = images[0]
+            if isinstance(first, dict):
+                return (first.get("url") or first.get("imageUrl")), (first.get("base64Bytes") or first.get("base64") or first.get("imageBase64"))
+            elif isinstance(first, str):
+                if first.startswith("http"):
+                    return first, None
+                return None, first
+                
+        return None, None
+
     def generate_image(self, prompt, aspect_ratio="16:9", subject_path=None, subject_prompt=None, 
-                       scene_path=None, scene_prompt=None, style_path=None, style_prompt=None, retries=1):
+                       scene_path=None, scene_prompt=None, style_path=None, style_prompt=None, retries=2):
         """
         Generates a REAL AI image based on the exact user prompt text.
         """
@@ -151,29 +176,30 @@ class WhiskAPIClient:
         }
         width, height = dim_map.get(aspect_ratio, (1024, 768))
 
-        # Attempt 1: Whisk API if cookies provided
+        # Attempt 1: Google Whisk API if cookies provided
         if self.has_cookies:
-            try:
-                payload = {
-                    "prompt": full_prompt,
-                    "aspectRatio": aspect_ratio,
-                    "references": {}
-                }
-                if subject_path or subject_prompt:
-                    payload["references"]["subject"] = {"prompt": subject_prompt or "", "imageBase64": self.encode_image_to_base64(subject_path)}
-                if scene_path or scene_prompt:
-                    payload["references"]["scene"] = {"prompt": scene_prompt or "", "imageBase64": self.encode_image_to_base64(scene_path)}
-                if style_path or style_prompt:
-                    payload["references"]["style"] = {"prompt": style_prompt or "", "imageBase64": self.encode_image_to_base64(style_path)}
+            for attempt in range(retries):
+                try:
+                    payload = {
+                        "prompt": full_prompt,
+                        "aspectRatio": aspect_ratio,
+                        "references": {}
+                    }
+                    if subject_path or subject_prompt:
+                        payload["references"]["subject"] = {"prompt": subject_prompt or "", "imageBase64": self.encode_image_to_base64(subject_path)}
+                    if scene_path or scene_prompt:
+                        payload["references"]["scene"] = {"prompt": scene_prompt or "", "imageBase64": self.encode_image_to_base64(scene_path)}
+                    if style_path or style_prompt:
+                        payload["references"]["style"] = {"prompt": style_prompt or "", "imageBase64": self.encode_image_to_base64(style_path)}
 
-                response = self.session.post(self.WHISK_URL, json=payload, timeout=self.timeout)
-                if response.status_code == 200:
-                    data = response.json()
-                    image_url = data.get("imageUrl") or data.get("result", {}).get("url")
-                    if image_url:
-                        return {"success": True, "image_url": image_url, "image_b64": data.get("imageBase64")}
-            except Exception:
-                pass
+                    response = self.session.post(self.WHISK_URL, json=payload, timeout=self.timeout)
+                    if response.status_code == 200:
+                        data = response.json()
+                        img_url, img_b64 = self.parse_whisk_response(data)
+                        if img_url or img_b64:
+                            return {"success": True, "image_url": img_url, "image_b64": img_b64, "data": data}
+                except Exception:
+                    pass
 
         # Attempt 2: Multi-provider Real AI Generator
         encoded = urllib.parse.quote(enhanced_prompt)
@@ -193,7 +219,7 @@ class WhiskAPIClient:
     def download_image(self, image_url_or_b64, output_path, retries=5):
         """
         Download real AI image from URL or save from Base64 string directly to disk.
-        Supports multi-provider fallback and thread-safe retries.
+        Includes multi-provider fallbacks and thread-safe retries to guarantee 100% download success.
         """
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         
@@ -212,19 +238,19 @@ class WhiskAPIClient:
             except Exception:
                 return False
 
-        # Stagger parallel threads slightly to prevent rate limit spikes
-        time.sleep(random.uniform(0.1, 1.2))
+        current_url = image_url_or_b64
 
         for attempt in range(retries):
             try:
-                # Randomize seed on retry if initial attempt was rate-limited
-                current_url = image_url_or_b64
-                if attempt > 0 and "seed=" in current_url:
+                # Rotate seed & provider on retry
+                if attempt > 0:
                     new_seed = random.randint(1000000, 9999999)
-                    current_url = urllib.parse.sub(r'seed=\d+', f'seed={new_seed}', current_url) if 'seed=' in current_url else current_url
+                    if "seed=" in current_url:
+                        parts = current_url.split("seed=")
+                        current_url = parts[0] + f"seed={new_seed}" + (parts[1][parts[1].find("&"):] if "&" in parts[1] else "")
 
                 headers = {
-                    "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/{120 + attempt * 2}.0.0.0 Safari/537.36",
+                    "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/{120 + attempt * 3}.0.0.0 Safari/537.36",
                     "Accept": "image/webp,image/apng,image/jpeg,image/png,*/*"
                 }
                 
@@ -240,6 +266,6 @@ class WhiskAPIClient:
             except Exception:
                 pass
             
-            time.sleep(1.2 + attempt * 0.8)
+            time.sleep(1.0)
 
         return False

@@ -1,6 +1,4 @@
 ﻿id,prompt,status,file_path,error,timestamp
-1,A breathtaking panoramic illustration of earthy futuristic landscape with glowing waterfalls,error,,Lỗi lưu file ảnh,2026-07-22 09:45:00
-2,A dramatic editorial illustration of three cybernetic warriors in neon armor,success,./images\002_a_dramatic_editorial_illustration_o_8d6b.png,,2026-07-22 09:45:17
-3,A majestic and slightly menacing oil painting of a mythical dragon over ancient ruins,error,,Lỗi lưu file ảnh,2026-07-22 09:45:00
-4,A sweeping illustrated map of the Austro-Hungarian empire in steampunk style,error,,Lỗi lưu file ảnh,2026-07-22 09:45:00
-5,Realistic photography of a sleek high-tech AI camera lens with soft studio lighting,error,,Lỗi lưu file ảnh,2026-07-22 09:45:00
+1,công chúa,error,,Lỗi lưu file ảnh,2026-07-22 09:48:31
+2,hoàng tử,error,,Lỗi lưu file ảnh,2026-07-22 09:48:31
+3,siêu nhân,success,./images\003_sieu_nhan_4612.png,,2026-07-22 09:48:18
