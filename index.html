@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Whisk Image Generator Pro by creatornow.com.vn</title>
+  <!-- Google Fonts & FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Top System Menu Bar (Tools, License, Help) -->
+    <div class="system-menu-bar">
+      <div class="system-menu-item"><i class="fa-solid fa-wrench"></i> Toolcs</div>
+      <div class="system-menu-item"><i class="fa-solid fa-certificate"></i> License</div>
+      <div class="system-menu-item" style="color: #ef4444;"><i class="fa-solid fa-circle-question"></i> Help</div>
+    </div>
+
+    <!-- Header Banner - Exact Match to Screenshot -->
+    <header class="app-header">
+      <div class="brand-section">
+        <div class="brand-logo">
+          C
+          <span>CREATOR NOW</span>
+        </div>
+        <div class="brand-title">
+          <h1>Whisk Image Generator Pro</h1>
+          <p>by creatornow.com.vn</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="status-indicator">
+          <span class="dot-online"></span>
+          <span id="engineStatusText">Sẵn sàng</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Workspace Split Layout -->
+    <main class="app-workspace">
+      
+      <!-- LEFT PANEL: References & Settings -->
+      <aside class="panel">
+        
+        <!-- SECTION 1: Reference Images -->
+        <div class="section-card">
+          <div class="section-header">
+            <i class="fa-solid fa-images"></i> Ảnh Tham Chiếu (Reference Images)
+          </div>
+
+          <!-- Subject -->
+          <div class="ref-item">
+            <div class="ref-label-row">
+              <span class="ref-label">Subject:</span>
+            </div>
+            <div class="ref-input-group">
+              <input type="text" class="input-text" id="refSubjectPath" placeholder="Chọn ảnh đối tượng chính..." readonly>
+              <button class="btn btn-gold" onclick="selectRefFile('Subject')"><i class="fa-solid fa-folder"></i> Chọn</button>
+              <button class="btn btn-secondary" onclick="checkRef('Subject')"><i class="fa-solid fa-magnifying-glass"></i> Kiểm tra</button>
+              <button class="btn-danger-icon" onclick="clearRef('Subject')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="ref-label-row" style="margin-top: 4px;">
+              <span class="ref-label">Prompt:</span>
+            </div>
+            <input type="text" class="input-text" id="refSubjectPrompt" placeholder="VD: 'young woman, brown eyes, long black hair, oval face' - Mô tả chi tiết khuôn mặt để AI copy chính xác hơn">
+          </div>
+
+          <!-- Scene -->
+          <div class="ref-item">
+            <div class="ref-label-row">
+              <span class="ref-label">Scene:</span>
+            </div>
+            <div class="ref-input-group">
+              <input type="text" class="input-text" id="refScenePath" placeholder="Chọn ảnh cảnh/bối cảnh..." readonly>
+              <button class="btn btn-gold" onclick="selectRefFile('Scene')"><i class="fa-solid fa-folder"></i> Chọn</button>
+              <button class="btn btn-secondary" onclick="checkRef('Scene')"><i class="fa-solid fa-magnifying-glass"></i> Kiểm tra</button>
+              <button class="btn-danger-icon" onclick="clearRef('Scene')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="ref-label-row" style="margin-top: 4px;">
+              <span class="ref-label">Prompt:</span>
+            </div>
+            <input type="text" class="input-text" id="refScenePrompt" placeholder="VD: 'modern office, glass windows, natural lighting' - Mô tả chi tiết môi trường">
+          </div>
+
+          <!-- Style -->
+          <div class="ref-item">
+            <div class="ref-label-row">
+              <span class="ref-label">Style:</span>
+            </div>
+            <div class="ref-input-group">
+              <input type="text" class="input-text" id="refStylePath" placeholder="Chọn ảnh phong cách..." readonly>
+              <button class="btn btn-gold" onclick="selectRefFile('Style')"><i class="fa-solid fa-folder"></i> Chọn</button>
+              <button class="btn btn-secondary" onclick="checkRef('Style')"><i class="fa-solid fa-magnifying-glass"></i> Kiểm tra</button>
+              <button class="btn-danger-icon" onclick="clearRef('Style')"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="ref-label-row" style="margin-top: 4px;">
+              <span class="ref-label">Prompt:</span>
+            </div>
+            <input type="text" class="input-text" id="refStylePrompt" placeholder="VD: 'realistic photography, soft lighting, professional portrait' - Mô tả phong cách nghệ thuật">
+          </div>
+        </div>
+
+        <!-- SECTION 2: Settings -->
+        <div class="section-card">
+          <div class="section-header">
+            <i class="fa-solid fa-gear"></i> Cài đặt (Settings)
+          </div>
+
+          <div class="settings-grid">
+            <!-- Cookies -->
+            <div class="form-group full-width">
+              <span class="form-label"><i class="fa-solid fa-cookie"></i> Cookies:</span>
+              <textarea class="input-text" id="cookiesInput" placeholder="_ga=GA1.1.345442819.1765593965; &#10;_ga_5K7X2T4V16=GS2.1.1769358935$o7$g0$t1769358935$j60$l0$h0; &#10;_ga_X2GNH8R5NS=GS2.1.s1769784902$o41$q1$t1769784931$j31$0$h1194708099; Host-next-auth.csrf-token=..."></textarea>
+              <button class="btn btn-secondary" style="width: 100%; margin-top: 4px; background: #0284c7;" onclick="saveCookies()">
+                <i class="fa-solid fa-floppy-disk"></i> Lưu Cookies
+              </button>
+            </div>
+
+            <!-- Threads -->
+            <div class="form-group">
+              <span class="form-label">Số luồng:</span>
+              <input type="number" class="input-text" id="threadsInput" value="10" min="1" max="50">
+            </div>
+
+            <!-- Aspect Ratio -->
+            <div class="form-group">
+              <span class="form-label">Tỷ lệ:</span>
+              <select class="input-text" id="aspectRatioSelect">
+                <option value="Landscape (16:9)">Landscape (16:9)</option>
+                <option value="Portrait (9:16)">Portrait (9:16)</option>
+                <option value="Square (1:1)">Square (1:1)</option>
+                <option value="Standard (4:3)">Standard (4:3)</option>
+              </select>
+            </div>
+
+            <!-- Output Directory -->
+            <div class="form-group full-width">
+              <span class="form-label">Thư mục:</span>
+              <div class="ref-input-group">
+                <input type="text" class="input-text" id="outputDirInput" value="./images">
+                <button class="btn btn-secondary" onclick="browseOutputDir()"><i class="fa-solid fa-ellipsis"></i></button>
+              </div>
+            </div>
+
+            <!-- Start Index -->
+            <div class="form-group">
+              <span class="form-label">Số bắt đầu:</span>
+              <input type="number" class="input-text" id="startIndexInput" value="1" min="1">
+            </div>
+          </div>
+        </div>
+
+        <!-- Control Action Buttons -->
+        <div class="control-actions">
+          <button class="btn btn-primary" id="startBtn" onclick="startGeneration()">
+            <i class="fa-solid fa-paper-plane"></i> Bắt đầu
+          </button>
+          <button class="btn btn-stop" id="stopBtn" onclick="stopGeneration()">
+            <i class="fa-solid fa-square"></i> Dừng
+          </button>
+          <button class="btn btn-retry" onclick="retryCurrentPrompt()">
+            <i class="fa-solid fa-rotate-right"></i> Retry với prompt hiện tại
+          </button>
+          <button class="btn btn-orange" onclick="showErrorDetails()">
+            <i class="fa-solid fa-circle-exclamation"></i> Chi tiết lỗi
+          </button>
+        </div>
+
+      </aside>
+
+      <!-- RIGHT PANEL: Prompts, Progress & Logs -->
+      <section class="panel">
+        
+        <!-- Prompts Management Section -->
+        <div class="section-card">
+          <div class="section-header">
+            <i class="fa-solid fa-list"></i> Prompts Management
+          </div>
+
+          <!-- Mode Switch Tabs -->
+          <div class="tabs-header">
+            <button class="tab-btn" id="tabTextBtn" onclick="switchTab('text')">
+              <i class="fa-solid fa-file-lines"></i> Text Editor
+            </button>
+            <button class="tab-btn active" id="tabTableBtn" onclick="switchTab('table')">
+              <i class="fa-solid fa-table"></i> Table Editor
+            </button>
+          </div>
+
+          <!-- TAB 1: Table Editor View -->
+          <div id="tableEditorView">
+            <!-- Prompts Table -->
+            <div class="table-container">
+              <table class="prompt-table" id="promptTable">
+                <thead>
+                  <tr>
+                    <th style="width: 60px; text-align: center;">STT</th>
+                    <th>Prompt</th>
+                    <th style="width: 140px; text-align: center;">Tiến độ</th>
+                    <th style="width: 80px; text-align: center;">Rerun</th>
+                  </tr>
+                </thead>
+                <tbody id="promptTableBody">
+                  <!-- Rows injected dynamically by app.js -->
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Toolbar Buttons -->
+            <div class="table-toolbar">
+              <div class="toolbar-group">
+                <button class="btn" onclick="addPromptRow()"><i class="fa-solid fa-plus"></i> Thêm dòng</button>
+                <button class="btn" onclick="deleteSelectedRow()"><i class="fa-solid fa-minus"></i> Xóa dòng</button>
+                <button class="btn" onclick="moveRowUp()"><i class="fa-solid fa-arrow-up"></i> Lên</button>
+                <button class="btn" onclick="moveRowDown()"><i class="fa-solid fa-arrow-down"></i> Xuống</button>
+              </div>
+              <div class="toolbar-group">
+                <button class="btn" onclick="importFromFile()"><i class="fa-solid fa-folder-open"></i> Import từ file</button>
+                <button class="btn" onclick="exportToFile()"><i class="fa-solid fa-floppy-disk"></i> Export ra file</button>
+                <button class="btn" onclick="syncTextToTable()"><i class="fa-solid fa-arrows-rotate"></i> Sync Text ↔ Table</button>
+                <button class="btn" style="background: #0284c7;" onclick="clearAllPrompts()"><i class="fa-solid fa-trash"></i> Xóa tất cả</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: Text Editor View (Hidden by default) -->
+          <div id="textEditorView" style="display: none;">
+            <div class="toolbar-group" style="margin-bottom: 8px;">
+              <button class="btn" onclick="syncTextToTable()"><i class="fa-solid fa-arrows-rotate"></i> Cập nhật vào Bảng Prompt</button>
+            </div>
+            <textarea class="input-text" id="textPromptEditor" style="height: 220px; font-family: var(--font-mono);" placeholder="Nhập mỗi prompt trên 1 dòng..."></textarea>
+          </div>
+        </div>
+
+        <!-- SECTION: Progress Tracking -->
+        <div class="progress-card">
+          <div class="section-header" style="margin-bottom: 6px; border-bottom: none; padding-bottom: 0;">
+            <i class="fa-solid fa-chart-column"></i> Tiến độ
+          </div>
+          
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">
+            Tổng thể:
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progressBarFill"></div>
+          </div>
+
+          <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 4px;">
+            Ảnh hiện tại:
+          </div>
+          <div class="progress-bar-bg" style="height: 8px;">
+            <div class="progress-bar-fill" id="currentProgressBarFill" style="width: 0%; background: #0284c7;"></div>
+          </div>
+
+          <div style="font-size: 12px; color: var(--text-main); font-weight: 700; margin-top: 6px;">
+            Sẵn sàng
+          </div>
+
+          <div class="metrics-row">
+            <div class="metric-badge metric-success">
+              <i class="fa-solid fa-check"></i> Thành công: <span id="metricSuccess">0</span>
+            </div>
+            <div class="metric-badge metric-error">
+              <i class="fa-solid fa-xmark"></i> Lỗi: <span id="metricError">0</span>
+            </div>
+            <div class="metric-badge metric-pending">
+              <i class="fa-solid fa-hourglass-half"></i> Đang chờ: <span id="metricPending">0</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION: Console Log -->
+        <div class="section-card" style="padding: 10px;">
+          <div class="ref-label-row" style="margin-bottom: 6px;">
+            <span class="ref-label"><i class="fa-solid fa-terminal"></i> Log</span>
+          </div>
+          <div class="log-box" id="logConsole">
+            <!-- Logs dynamically generated -->
+          </div>
+          <div style="text-align: right; margin-top: 6px;">
+            <button class="btn" style="background: #0284c7; padding: 4px 12px; font-size: 11px;" onclick="clearLogs()">
+              <i class="fa-solid fa-trash"></i> Xóa log
+            </button>
+          </div>
+        </div>
+
+        <!-- SECTION: Generated Image Gallery -->
+        <div class="gallery-section">
+          <div class="ref-label-row">
+            <span class="ref-label"><i class="fa-solid fa-photo-film"></i> Thư viện kết quả ảnh:</span>
+            <span class="ref-hint" id="galleryCount">0 ảnh</span>
+          </div>
+          <div class="gallery-grid" id="galleryGrid">
+            <!-- Rendered image cards -->
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Image Preview Modal -->
+  <div class="modal-backdrop" id="imageModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <img id="modalImg" src="" alt="Full Preview">
+    </div>
+  </div>
+
+  <!-- Hidden File Inputs -->
+  <input type="file" id="fileImportInput" accept=".txt,.csv" style="display: none;" onchange="handleFileImport(event)">
+  <input type="file" id="refImageFileInput" accept="image/*" style="display: none;" onchange="handleRefImageSelect(event)">
+
+  <script src="app.js"></script>
+</body>
+</html>
