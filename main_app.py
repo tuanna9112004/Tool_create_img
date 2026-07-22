@@ -154,7 +154,7 @@ class WhiskTkinterApp(tk.Tk):
 
         tk.Label(sett_frame, text="🔑 Cookies:", font=("Segoe UI", 9, "bold"), fg=TEXT_MAIN, bg=BG_CARD).pack(anchor="w")
         self.txt_cookies = tk.Text(sett_frame, bg=BG_INPUT, fg=TEXT_MAIN, height=3, relief="solid", bd=1)
-        self.txt_cookies.insert("1.0", "_ga=GA1.1.345442819.1765593965;\n_ga_5K7X2T4V16=GS2.1.1769358935$o7$g0$t1769358935$j60$l0$h0;\n_ga_X2GNH8R5NS=GS2.1.s1769784902$o41$q1$t1769784931$j31$0$h1194708099; Host-next-auth.csrf-token=...")
+        # Ô cookie để trống mặc định để người dùng dán cookie tài khoản của mình khi cần
         self.txt_cookies.pack(fill="x", pady=(2, 4))
 
         btn_save_cookies = tk.Button(sett_frame, text="💾 Lưu Cookies", bg=COLOR_BLUE, fg="#ffffff", font=("Segoe UI", 9, "bold"), relief="flat", command=self.save_cookies)

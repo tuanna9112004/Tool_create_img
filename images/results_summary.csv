@@ -1,2 +1,3 @@
 ﻿id,prompt,status,file_path,error,timestamp
-1,tạo ảnh 1 cô gái xinh đẹp đăng ăn kem,success,./images\img_001_1784687574.png,,2026-07-22 09:32:54
+1,tạo ảnh 1 cô gái đang ăn kem,error,,Lỗi lưu file ảnh,2026-07-22 09:37:56
+2,1 cô gái đang uống nước,success,./images\img_002_1784687875.png,,2026-07-22 09:37:57
