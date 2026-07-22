@@ -100,6 +100,7 @@ function saveCookies() {
 function saveFullState() {
   const state = {
     cookies: document.getElementById("cookiesInput").value,
+    ai_model: document.getElementById("aiModelSelect").value,
     threads: document.getElementById("threadsInput").value,
     aspect_ratio: document.getElementById("aspectRatioSelect").value,
     output_dir: document.getElementById("outputDirInput").value,
@@ -122,6 +123,7 @@ function loadSavedSettings() {
   try {
     const state = JSON.parse(saved);
     if (state.cookies) document.getElementById("cookiesInput").value = state.cookies;
+    if (state.ai_model) document.getElementById("aiModelSelect").value = state.ai_model;
     if (state.threads) document.getElementById("threadsInput").value = state.threads;
     if (state.aspect_ratio) document.getElementById("aspectRatioSelect").value = state.aspect_ratio;
     if (state.output_dir) document.getElementById("outputDirInput").value = state.output_dir;

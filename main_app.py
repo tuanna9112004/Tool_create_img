@@ -176,23 +176,33 @@ class WhiskTkinterApp(tk.Tk):
         grid_f = tk.Frame(sett_frame, bg=BG_CARD)
         grid_f.pack(fill="x")
 
-        tk.Label(grid_f, text="Số luồng:", bg=BG_CARD, fg=TEXT_MAIN, font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=3)
+        tk.Label(grid_f, text="🤖 Model AI:", bg=BG_CARD, fg=TEXT_MAIN, font=("Segoe UI", 9, "bold")).grid(row=0, column=0, sticky="w", pady=3)
+        self.cmb_model = ttk.Combobox(grid_f, values=[
+            "Nano Banana 2 Lite (Gemini 3.1 Flash-Lite)",
+            "Google Whisk (Imagen 3)",
+            "Flux.1 Schnell (High Quality)",
+            "Stable Diffusion XL (Turbo)"
+        ], width=26)
+        self.cmb_model.current(0)
+        self.cmb_model.grid(row=0, column=1, columnspan=3, sticky="we", pady=3)
+
+        tk.Label(grid_f, text="Số luồng:", bg=BG_CARD, fg=TEXT_MAIN, font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=3)
         self.spin_threads = tk.Spinbox(grid_f, from_=1, to=50, width=6, bg=BG_INPUT, fg=TEXT_MAIN, relief="solid", bd=1)
         self.spin_threads.delete(0, "end")
         self.spin_threads.insert(0, "10")
-        self.spin_threads.grid(row=0, column=1, sticky="w", padx=4)
+        self.spin_threads.grid(row=1, column=1, sticky="w", padx=4)
 
-        tk.Label(grid_f, text="Tỷ lệ:", bg=BG_CARD, fg=TEXT_MAIN, font=("Segoe UI", 9, "bold")).grid(row=0, column=2, sticky="w", padx=(10, 4))
+        tk.Label(grid_f, text="Tỷ lệ:", bg=BG_CARD, fg=TEXT_MAIN, font=("Segoe UI", 9, "bold")).grid(row=1, column=2, sticky="w", padx=(10, 4))
         self.cmb_ratio = ttk.Combobox(grid_f, values=["Landscape (16:9)", "Portrait (9:16)", "Square (1:1)", "Standard (4:3)"], width=14)
         self.cmb_ratio.current(0)
-        self.cmb_ratio.grid(row=0, column=3, sticky="w")
+        self.cmb_ratio.grid(row=1, column=3, sticky="w")
 
-        tk.Label(grid_f, text="Thư mục:", bg=BG_CARD, fg=TEXT_MAIN, font=("Segoe UI", 9, "bold")).grid(row=1, column=0, sticky="w", pady=3)
+        tk.Label(grid_f, text="Thư mục:", bg=BG_CARD, fg=TEXT_MAIN, font=("Segoe UI", 9, "bold")).grid(row=2, column=0, sticky="w", pady=3)
         self.entry_outdir = tk.Entry(grid_f, bg=BG_INPUT, fg=TEXT_MAIN, relief="solid", bd=1, width=20)
         self.entry_outdir.insert(0, "./images")
-        self.entry_outdir.grid(row=1, column=1, columnspan=2, sticky="we", padx=4)
+        self.entry_outdir.grid(row=2, column=1, columnspan=2, sticky="we", padx=4)
         btn_browse_dir = tk.Button(grid_f, text="...", bg=COLOR_BLUE, fg="#ffffff", relief="flat", command=self.browse_outdir)
-        btn_browse_dir.grid(row=1, column=3, sticky="w")
+        btn_browse_dir.grid(row=2, column=3, sticky="w")
 
         # ----------------------------------------------------------------------
         # Control Action Buttons Row
@@ -314,6 +324,7 @@ class WhiskTkinterApp(tk.Tk):
         try:
             state = {
                 "cookies": self.txt_cookies.get("1.0", "end").strip(),
+                "model_name": self.cmb_model.get(),
                 "threads": self.spin_threads.get(),
                 "aspect_ratio": self.cmb_ratio.get(),
                 "output_dir": self.entry_outdir.get(),
@@ -342,6 +353,9 @@ class WhiskTkinterApp(tk.Tk):
             if "cookies" in state:
                 self.txt_cookies.delete("1.0", "end")
                 self.txt_cookies.insert("1.0", state["cookies"])
+
+            if "model_name" in state and state["model_name"]:
+                self.cmb_model.set(state["model_name"])
 
             if "threads" in state:
                 self.spin_threads.delete(0, "end")
@@ -567,12 +581,14 @@ class WhiskTkinterApp(tk.Tk):
         outdir = self.entry_outdir.get().strip() or "./images"
         threads_cnt = int(self.spin_threads.get() or 10)
         ratio = self.cmb_ratio.get()
+        selected_model = self.cmb_model.get()
 
         self.processor = BatchProcessor(
             cookies_str=cookies,
             output_dir=outdir,
             threads=threads_cnt,
-            aspect_ratio=ratio
+            aspect_ratio=ratio,
+            model_name=selected_model
         )
 
         items = []

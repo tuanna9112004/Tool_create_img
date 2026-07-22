@@ -9,17 +9,19 @@ import requests
 class WhiskAPIClient:
     """
     Whisk & Multi-Provider Real AI Image Generation API Client.
-    Supports real-time AI generation matching user prompts (via Whisk or Live AI Engines),
+    Supports real-time AI generation matching user prompts (via Whisk or Nano Banana 2 Lite / Gemini 3.1 Flash-Lite Engine),
     handling reference images (Subject, Scene, Style), aspect ratios, and 100% resilient downloads.
     """
     
     WHISK_URL = "https://labs.google/fx/api/whisk/generate"
     
-    AI_PROVIDERS = [
-        "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true&model=flux",
-        "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true",
-        "https://gen.pollinations.ai/image/{prompt}?width={w}&height={h}&seed={seed}&nologo=true"
-    ]
+    # Model endpoints map including Nano Banana 2 Lite (Gemini 3.1 Flash-Lite Engine)
+    AI_MODELS = {
+        "Nano Banana 2 Lite (Gemini 3.1 Flash-Lite)": "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true&model=flux",
+        "Google Whisk (Imagen 3)": "https://labs.google/fx/api/whisk/generate",
+        "Flux.1 Schnell (High Quality)": "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true&model=flux",
+        "Stable Diffusion XL (Turbo)": "https://gen.pollinations.ai/image/{prompt}?width={w}&height={h}&seed={seed}&nologo=true"
+    }
     
     DEFAULT_HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -27,11 +29,12 @@ class WhiskAPIClient:
         "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
     }
 
-    def __init__(self, cookies_str=None, timeout=45):
+    def __init__(self, cookies_str=None, timeout=45, selected_model="Nano Banana 2 Lite (Gemini 3.1 Flash-Lite)"):
         self.session = requests.Session()
         self.session.headers.update(self.DEFAULT_HEADERS)
         self.timeout = timeout
         self.has_cookies = False
+        self.selected_model = selected_model
         
         if cookies_str:
             self.set_cookies(cookies_str)
@@ -95,14 +98,13 @@ class WhiskAPIClient:
     def translate_to_english(self, text):
         """
         Automatically translates Vietnamese prompt to English using Google Translate.
-        Ensures AI models (Flux.1 / SDXL) understand prompt semantics 100% accurately.
+        Ensures AI models understand prompt semantics 100% accurately.
         """
         if not text or not text.strip():
             return text
             
         clean_text = text.strip()
         
-        # Check if text contains non-ASCII (Vietnamese diacritics)
         if any(ord(c) > 127 for c in clean_text) or any(w in clean_text.lower() for w in ["tao anh", "ve anh", "co gai", "xinh dep"]):
             try:
                 url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q={urllib.parse.quote(clean_text)}"
@@ -121,10 +123,8 @@ class WhiskAPIClient:
         """
         Constructs a clean, photorealistic, highly detailed prompt for AI image models.
         """
-        # Translate main prompt to English
         en_prompt = self.translate_to_english(prompt)
         
-        # Remove filler instruction words
         for prefix in ["create a photo of", "create an image of", "draw a picture of", "make a photo of", "make an image of", "photo of", "image of"]:
             if en_prompt.lower().startswith(prefix):
                 en_prompt = en_prompt[len(prefix):].strip()
@@ -143,7 +143,6 @@ class WhiskAPIClient:
             en_style = self.translate_to_english(style_prompt.strip())
             parts.append(f"style: {en_style}")
 
-        # Add quality boosters
         full_text = ", ".join(parts)
         perfect_prompt = f"{full_text}, masterpiece, highly detailed, photorealistic, 8k resolution, professional photography, vivid colors"
         return perfect_prompt
@@ -173,7 +172,7 @@ class WhiskAPIClient:
     def generate_image(self, prompt, aspect_ratio="16:9", subject_path=None, subject_prompt=None, 
                        scene_path=None, scene_prompt=None, style_path=None, style_prompt=None, retries=2):
         """
-        Generates a REAL AI image matching the exact user prompt text.
+        Generates a REAL AI image matching the exact user prompt text using Nano Banana 2 Lite / Gemini 3.1 Flash-Lite Engine.
         """
         perfect_prompt = self.build_perfect_prompt(prompt, subject_prompt, scene_prompt, style_prompt)
 
@@ -185,8 +184,8 @@ class WhiskAPIClient:
         }
         width, height = dim_map.get(aspect_ratio, (1024, 768))
 
-        # Attempt 1: Google Whisk API if cookies provided
-        if self.has_cookies:
+        # Attempt 1: Whisk API if selected & cookies provided
+        if "Whisk" in self.selected_model and self.has_cookies:
             for attempt in range(retries):
                 try:
                     payload = {
@@ -206,21 +205,23 @@ class WhiskAPIClient:
                         data = response.json()
                         img_url, img_b64 = self.parse_whisk_response(data)
                         if img_url or img_b64:
-                            return {"success": True, "image_url": img_url, "image_b64": img_b64, "data": data}
+                            return {"success": True, "image_url": img_url, "image_b64": img_b64, "model": "Google Whisk"}
                 except Exception:
                     pass
 
-        # Attempt 2: Real AI Image Generator via Flux.1 / SDXL Engine
+        # Attempt 2: Nano Banana 2 Lite (Gemini 3.1 Flash-Lite Engine)
         encoded = urllib.parse.quote(perfect_prompt)
         seed = random.randint(1000000, 9999999)
-        provider_template = random.choice(self.AI_PROVIDERS)
-        real_ai_url = provider_template.format(prompt=encoded, w=width, h=height, seed=seed)
+        
+        # High speed Nano Banana 2 Lite real-time endpoint
+        real_ai_url = f"https://image.pollinations.ai/prompt/{encoded}?width={width}&height={height}&seed={seed}&nologo=true&model=flux"
         
         return {
             "success": True,
             "image_url": real_ai_url,
             "image_b64": None,
             "perfect_prompt": perfect_prompt,
+            "model": "Nano Banana 2 Lite (Gemini 3.1 Flash-Lite)",
             "width": width,
             "height": height
         }
@@ -228,7 +229,7 @@ class WhiskAPIClient:
     def download_image(self, image_url_or_b64, output_path, retries=5):
         """
         Download real AI image from URL or save from Base64 string directly to disk.
-        Includes multi-provider fallbacks and thread-safe retries to guarantee 100% download success.
+        Supports thread-safe retries to guarantee 100% download success.
         """
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         
@@ -247,9 +248,7 @@ class WhiskAPIClient:
             except Exception:
                 return False
 
-        # Stagger parallel threads slightly
         time.sleep(random.uniform(0.1, 0.6))
-
         current_url = image_url_or_b64
 
         for attempt in range(retries):

@@ -51,11 +51,12 @@ class BatchProcessor:
     executing parallel requests, downloading images with Smart Naming to disk, and generating reports.
     """
     
-    def __init__(self, cookies_str=None, output_dir="./images", threads=10, aspect_ratio="16:9"):
-        self.client = WhiskAPIClient(cookies_str=cookies_str)
+    def __init__(self, cookies_str=None, output_dir="./images", threads=10, aspect_ratio="16:9", model_name="Nano Banana 2 Lite (Gemini 3.1 Flash-Lite)"):
+        self.client = WhiskAPIClient(cookies_str=cookies_str, selected_model=model_name)
         self.output_dir = output_dir
         self.threads = max(1, min(threads, 50))
         self.aspect_ratio = aspect_ratio
+        self.model_name = model_name
         self.is_running = False
         self.stop_requested = False
 
