@@ -88,6 +88,7 @@ function checkCookies() {
 function saveCookies() {
   const val = document.getElementById("cookiesInput").value.trim();
   localStorage.setItem("whisk_cookies", val);
+  saveFullState();
   if (val) {
     checkCookies();
   } else {
@@ -96,11 +97,49 @@ function saveCookies() {
   }
 }
 
+function saveFullState() {
+  const state = {
+    cookies: document.getElementById("cookiesInput").value,
+    threads: document.getElementById("threadsInput").value,
+    aspect_ratio: document.getElementById("aspectRatioSelect").value,
+    output_dir: document.getElementById("outputDirInput").value,
+    start_index: document.getElementById("startIndexInput").value,
+    ref_subject_path: document.getElementById("refSubjectPath").value,
+    ref_subject_prompt: document.getElementById("refSubjectPrompt").value,
+    ref_scene_path: document.getElementById("refScenePath").value,
+    ref_scene_prompt: document.getElementById("refScenePrompt").value,
+    ref_style_path: document.getElementById("refStylePath").value,
+    ref_style_prompt: document.getElementById("refStylePrompt").value,
+    prompts: promptsList
+  };
+  localStorage.setItem("whisk_full_state", JSON.stringify(state));
+}
+
 function loadSavedSettings() {
-  const cookies = localStorage.getItem("whisk_cookies");
-  if (cookies) {
-    document.getElementById("cookiesInput").value = cookies;
-    log("Đã khôi phục cookies đã lưu", "info");
+  const saved = localStorage.getItem("whisk_full_state");
+  if (!saved) return;
+
+  try {
+    const state = JSON.parse(saved);
+    if (state.cookies) document.getElementById("cookiesInput").value = state.cookies;
+    if (state.threads) document.getElementById("threadsInput").value = state.threads;
+    if (state.aspect_ratio) document.getElementById("aspectRatioSelect").value = state.aspect_ratio;
+    if (state.output_dir) document.getElementById("outputDirInput").value = state.output_dir;
+    if (state.start_index) document.getElementById("startIndexInput").value = state.start_index;
+    
+    if (state.ref_subject_path) document.getElementById("refSubjectPath").value = state.ref_subject_path;
+    if (state.ref_subject_prompt) document.getElementById("refSubjectPrompt").value = state.ref_subject_prompt;
+    if (state.ref_scene_path) document.getElementById("refScenePath").value = state.ref_scene_path;
+    if (state.ref_scene_prompt) document.getElementById("refScenePrompt").value = state.ref_scene_prompt;
+    if (state.ref_style_path) document.getElementById("refStylePath").value = state.ref_style_path;
+    if (state.ref_style_prompt) document.getElementById("refStylePrompt").value = state.ref_style_prompt;
+
+    if (state.prompts && Array.isArray(state.prompts) && state.prompts.length > 0) {
+      promptsList = state.prompts;
+    }
+    log("💾 Đã khôi phục cài đặt và danh sách prompt từ phiên làm việc trước", "info");
+  } catch (e) {
+    console.error("State restore error", e);
   }
 }
 

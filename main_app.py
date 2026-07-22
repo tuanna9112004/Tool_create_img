@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import json
 import random
 import threading
 from datetime import datetime
@@ -28,6 +29,8 @@ COLOR_RED = "#ef4444"       # Nút Xóa / Delete
 COLOR_GREEN = "#10b981"     # Nút Bắt đầu
 COLOR_ORANGE = "#f59e0b"    # Nút Chi tiết lỗi
 
+CONFIG_FILE = "config.json"
+
 class WhiskTkinterApp(tk.Tk):
     def __init__(self):
         super().__init__()
@@ -48,7 +51,10 @@ class WhiskTkinterApp(tk.Tk):
 
         self.setup_styles()
         self.init_ui()
-        self.load_table_data()
+        self.load_state()  # Load saved state on startup
+        
+        # Intercept window close event to automatically save state
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
 
     def setup_styles(self):
         style = ttk.Style()
@@ -301,6 +307,80 @@ class WhiskTkinterApp(tk.Tk):
         btn_clear_log.pack(anchor="e", pady=4)
 
     # --------------------------------------------------------------------------
+    # STATE PERSISTENCE (SAVE & LOAD STATE TO DISK)
+    # --------------------------------------------------------------------------
+    def save_state(self):
+        """Save full application state to config.json"""
+        try:
+            state = {
+                "cookies": self.txt_cookies.get("1.0", "end").strip(),
+                "threads": self.spin_threads.get(),
+                "aspect_ratio": self.cmb_ratio.get(),
+                "output_dir": self.entry_outdir.get(),
+                "ref_subject_path": self.ref_widgets["Subject"][0].get(),
+                "ref_subject_prompt": self.ref_widgets["Subject"][1].get(),
+                "ref_scene_path": self.ref_widgets["Scene"][0].get(),
+                "ref_scene_prompt": self.ref_widgets["Scene"][1].get(),
+                "ref_style_path": self.ref_widgets["Style"][0].get(),
+                "ref_style_prompt": self.ref_widgets["Style"][1].get(),
+                "prompts": self.prompts
+            }
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump(state, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[State Save Warning] {e}")
+
+    def load_state(self):
+        """Restore full application state from config.json"""
+        if not os.path.exists(CONFIG_FILE):
+            return
+
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                state = json.load(f)
+
+            if "cookies" in state:
+                self.txt_cookies.delete("1.0", "end")
+                self.txt_cookies.insert("1.0", state["cookies"])
+
+            if "threads" in state:
+                self.spin_threads.delete(0, "end")
+                self.spin_threads.insert(0, str(state["threads"]))
+
+            if "aspect_ratio" in state and state["aspect_ratio"]:
+                self.cmb_ratio.set(state["aspect_ratio"])
+
+            if "output_dir" in state and state["output_dir"]:
+                self.entry_outdir.delete(0, "end")
+                self.entry_outdir.insert(0, state["output_dir"])
+
+            # Restore References
+            for k in ["Subject", "Scene", "Style"]:
+                path_key = f"ref_{k.lower()}_path"
+                prompt_key = f"ref_{k.lower()}_prompt"
+                if path_key in state and state[path_key]:
+                    self.ref_widgets[k][0].delete(0, "end")
+                    self.ref_widgets[k][0].insert(0, state[path_key])
+                if prompt_key in state and state[prompt_key]:
+                    self.ref_widgets[k][1].delete(0, "end")
+                    self.ref_widgets[k][1].insert(0, state[prompt_key])
+
+            # Restore Prompts List
+            if "prompts" in state and isinstance(state["prompts"], list) and len(state["prompts"]) > 0:
+                self.prompts = state["prompts"]
+                self.statuses = ["Đang chờ"] * len(self.prompts)
+                self.load_table_data()
+
+            self.log("💾 Đã khôi phục toàn bộ trạng thái và cài đặt từ phiên làm việc trước!", "info")
+        except Exception as e:
+            print(f"[State Load Error] {e}")
+
+    def on_close(self):
+        """Handle window close event: save state then destroy"""
+        self.save_state()
+        self.destroy()
+
+    # --------------------------------------------------------------------------
     # TABLE LOGIC & HANDLERS
     # --------------------------------------------------------------------------
     def log(self, message, msg_type="info"):
@@ -332,6 +412,7 @@ class WhiskTkinterApp(tk.Tk):
             self.ref_widgets[key][0].delete(0, "end")
             self.ref_widgets[key][0].insert(0, fn)
             self.log(f"Đã chọn ảnh tham chiếu [{key}]: {fn}")
+            self.save_state()
 
     def check_ref(self, key):
         path = self.ref_widgets[key][0].get()
@@ -342,12 +423,13 @@ class WhiskTkinterApp(tk.Tk):
 
     def clear_ref(self, key):
         self.ref_widgets[key][0].delete(0, "end")
+        self.save_state()
 
     def check_cookies(self):
         cookies = self.txt_cookies.get("1.0", "end").strip()
         if not cookies:
             self.log("⚠️ Chưa nhập Cookies. Phần mềm sẽ tự động dùng Engine AI mặc định.", "warning")
-            messagebox.showwarning("Chưa nhập Cookies", "Bạn chưa nhập Cookies!\n\nHệ thống sẽ tự động sử dụng Engine AI mặc định (Flux.1 / SDXL) để sinh ảnh theo đúng prompt.")
+            messagebox.showwarning("Chưa nhập Cookies", "Bạn chưa nhập Cookies!\n\nHệ thống sẽ tự động sử dụng Engine AI mặc định để sinh ảnh theo đúng prompt.")
             return False
 
         self.log("🔍 Đang kiểm tra tính hợp lệ của Cookies...", "info")
@@ -365,6 +447,7 @@ class WhiskTkinterApp(tk.Tk):
 
     def save_cookies(self):
         cookies = self.txt_cookies.get("1.0", "end").strip()
+        self.save_state()
         if not cookies:
             self.log("🟨 Đã lưu cấu hình (Không sử dụng Cookies).", "info")
             messagebox.showinfo("Thông báo", "Đã lưu cài đặt! Phần mềm sẽ tự động sinh ảnh bằng Engine AI mặc định.")
@@ -379,11 +462,13 @@ class WhiskTkinterApp(tk.Tk):
         if d:
             self.entry_outdir.delete(0, "end")
             self.entry_outdir.insert(0, d)
+            self.save_state()
 
     def add_prompt(self):
         self.prompts.append("Prompt sinh ảnh mới...")
         self.statuses.append("Đang chờ")
         self.load_table_data()
+        self.save_state()
 
     def del_prompt(self):
         sel = self.tree.selection()
@@ -392,6 +477,7 @@ class WhiskTkinterApp(tk.Tk):
             del self.prompts[idx]
             del self.statuses[idx]
             self.load_table_data()
+            self.save_state()
 
     def move_up(self):
         sel = self.tree.selection()
@@ -401,6 +487,7 @@ class WhiskTkinterApp(tk.Tk):
                 self.prompts[idx], self.prompts[idx - 1] = self.prompts[idx - 1], self.prompts[idx]
                 self.statuses[idx], self.statuses[idx - 1] = self.statuses[idx - 1], self.statuses[idx]
                 self.load_table_data()
+                self.save_state()
 
     def move_down(self):
         sel = self.tree.selection()
@@ -410,12 +497,14 @@ class WhiskTkinterApp(tk.Tk):
                 self.prompts[idx], self.prompts[idx + 1] = self.prompts[idx + 1], self.prompts[idx]
                 self.statuses[idx], self.statuses[idx + 1] = self.statuses[idx + 1], self.statuses[idx]
                 self.load_table_data()
+                self.save_state()
 
     def clear_all(self):
         if messagebox.askyesno("Xác nhận", "Xóa toàn bộ danh sách prompt?"):
             self.prompts.clear()
             self.statuses.clear()
             self.load_table_data()
+            self.save_state()
 
     def sync_text_to_table(self):
         text = self.txt_editor.get("1.0", "end").strip()
@@ -425,6 +514,7 @@ class WhiskTkinterApp(tk.Tk):
             self.statuses = ["Đang chờ"] * len(lines)
             self.load_table_data()
             self.notebook.select(0)
+            self.save_state()
             self.log(f"🟨 Đã đồng bộ {len(lines)} prompts từ Text Editor")
 
     def import_file(self):
@@ -436,6 +526,7 @@ class WhiskTkinterApp(tk.Tk):
                 self.prompts = [item["prompt"] for item in items]
                 self.statuses = ["Đang chờ"] * len(items)
                 self.load_table_data()
+                self.save_state()
                 self.log(f"🟩 Đã import {len(items)} prompts từ file: {fn}")
             except Exception as e:
                 messagebox.showerror("Lỗi Import", str(e))
@@ -457,6 +548,8 @@ class WhiskTkinterApp(tk.Tk):
         if not self.prompts:
             messagebox.showwarning("Cảnh báo", "Vui lòng nhập danh sách prompt trước!")
             return
+
+        self.save_state()
 
         cookies = self.txt_cookies.get("1.0", "end").strip()
         if cookies:
