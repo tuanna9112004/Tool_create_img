@@ -8,24 +8,26 @@ import requests
 
 class WhiskAPIClient:
     """
-    Whisk & Real AI Image Generation API Client.
-    Supports real-time AI generation matching user prompts (via Whisk or Live AI Engine),
-    handling reference images (Subject, Scene, Style), aspect ratios, and file downloads.
+    Whisk & Multi-Provider Real AI Image Generation API Client.
+    Supports real-time AI generation matching user prompts (via Whisk or Live AI Engines),
+    handling reference images (Subject, Scene, Style), aspect ratios, and parallel file downloads.
     """
     
     WHISK_URL = "https://labs.google/fx/api/whisk/generate"
-    POLLINATIONS_URL = "https://image.pollinations.ai/prompt"
+    
+    AI_PROVIDERS = [
+        "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true",
+        "https://gen.pollinations.ai/image/{prompt}?width={w}&height={h}&seed={seed}&nologo=true",
+        "https://image.pollinations.ai/prompt/{prompt}?width={w}&height={h}&seed={seed}&nologo=true&model=flux"
+    ]
     
     DEFAULT_HEADERS = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "application/json, text/plain, */*",
+        "Accept": "image/webp,image/apng,image/jpeg,image/png,*/*;q=0.8",
         "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Content-Type": "application/json",
-        "Origin": "https://labs.google",
-        "Referer": "https://labs.google/fx/tools/whisk"
     }
 
-    def __init__(self, cookies_str=None, timeout=90):
+    def __init__(self, cookies_str=None, timeout=45):
         self.session = requests.Session()
         self.session.headers.update(self.DEFAULT_HEADERS)
         self.timeout = timeout
@@ -63,11 +65,9 @@ class WhiskAPIClient:
             return False, "Chưa nhập Cookies. Vui lòng dán chuỗi Cookies xác thực!"
 
         try:
-            # Send verification request to Google Labs Whisk portal
             res = self.session.get("https://labs.google/fx/tools/whisk", timeout=12)
             
             if res.status_code == 200:
-                # Check for session auth tokens
                 cookie_names = list(self.session.cookies.keys())
                 auth_tokens = [c for c in cookie_names if "auth" in c.lower() or "session" in c.lower() or "_ga" in c.lower()]
                 
@@ -175,41 +175,71 @@ class WhiskAPIClient:
             except Exception:
                 pass
 
-        # Attempt 2: Real AI Image Generator via Live AI Engine (Pollinations Flux/SDXL)
+        # Attempt 2: Multi-provider Real AI Generator
         encoded = urllib.parse.quote(enhanced_prompt)
-        seed = random.randint(100000, 999999)
-        real_ai_url = f"{self.POLLINATIONS_URL}/{encoded}?width={width}&height={height}&seed={seed}&nologo=true"
+        seed = random.randint(1000000, 9999999)
+        provider_template = random.choice(self.AI_PROVIDERS)
+        real_ai_url = provider_template.format(prompt=encoded, w=width, h=height, seed=seed)
         
         return {
             "success": True,
             "image_url": real_ai_url,
-            "image_b64": None
+            "image_b64": None,
+            "enhanced_prompt": enhanced_prompt,
+            "width": width,
+            "height": height
         }
 
-    def download_image(self, image_url_or_b64, output_path):
-        """Download real AI image from URL or save from Base64 string directly to disk"""
+    def download_image(self, image_url_or_b64, output_path, retries=5):
+        """
+        Download real AI image from URL or save from Base64 string directly to disk.
+        Supports multi-provider fallback and thread-safe retries.
+        """
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         
-        try:
-            if not image_url_or_b64:
-                return False
+        if not image_url_or_b64:
+            return False
 
-            if image_url_or_b64.startswith("data:image") or (len(image_url_or_b64) > 1000 and not image_url_or_b64.startswith("http")):
+        # Handle Base64 string directly
+        if image_url_or_b64.startswith("data:image") or (len(image_url_or_b64) > 1000 and not image_url_or_b64.startswith("http")):
+            try:
                 if "," in image_url_or_b64:
                     image_url_or_b64 = image_url_or_b64.split(",", 1)[1]
                 img_data = base64.b64decode(image_url_or_b64)
                 with open(output_path, "wb") as f:
                     f.write(img_data)
                 return True
-            else:
-                res = self.session.get(image_url_or_b64, timeout=self.timeout, stream=True)
+            except Exception:
+                return False
+
+        # Stagger parallel threads slightly to prevent rate limit spikes
+        time.sleep(random.uniform(0.1, 1.2))
+
+        for attempt in range(retries):
+            try:
+                # Randomize seed on retry if initial attempt was rate-limited
+                current_url = image_url_or_b64
+                if attempt > 0 and "seed=" in current_url:
+                    new_seed = random.randint(1000000, 9999999)
+                    current_url = urllib.parse.sub(r'seed=\d+', f'seed={new_seed}', current_url) if 'seed=' in current_url else current_url
+
+                headers = {
+                    "User-Agent": f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/{120 + attempt * 2}.0.0.0 Safari/537.36",
+                    "Accept": "image/webp,image/apng,image/jpeg,image/png,*/*"
+                }
+                
+                res = requests.get(current_url, headers=headers, timeout=35, stream=True)
                 if res.status_code == 200:
                     with open(output_path, "wb") as f:
-                        for chunk in res.iter_content(chunk_size=8192):
+                        for chunk in res.iter_content(chunk_size=16384):
                             if chunk:
                                 f.write(chunk)
-                    return True
-                return False
-        except Exception as e:
-            print(f"[Download Error] {output_path}: {e}")
-            return False
+                    
+                    if os.path.exists(output_path) and os.path.getsize(output_path) > 1000:
+                        return True
+            except Exception:
+                pass
+            
+            time.sleep(1.2 + attempt * 0.8)
+
+        return False

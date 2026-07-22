@@ -3,16 +3,52 @@ import sys
 import csv
 import json
 import time
+import re
+import hashlib
+import unicodedata
 import argparse
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from whisk_api import WhiskAPIClient
 
+def generate_smart_filename(prompt, index, extension="png"):
+    """
+    Generate Smart Filename based on Prompt Slug, Order Index, and Hash.
+    Example: "Tạo ảnh 1 cô gái xinh đẹp đang ăn kem" -> "001_co_gai_xinh_dep_dang_an_kem_8a3f.png"
+    """
+    if not prompt:
+        slug = "image"
+    else:
+        # Clean prefix words like "tạo ảnh", "vẽ"
+        clean = prompt.strip()
+        for prefix in ["tạo ảnh", "vẽ ảnh", "tạo hình ảnh", "hãy tạo", "tạo giúp tôi", "vẽ"]:
+            if clean.lower().startswith(prefix):
+                clean = clean[len(prefix):].strip()
+                
+        # Normalize unicode to remove Vietnamese diacritics
+        nfkd = unicodedata.normalize('NFKD', clean)
+        ascii_str = ''.join([c for c in nfkd if not unicodedata.combining(c)])
+        
+        # Replace non-alphanumeric characters with underscore
+        slug = re.sub(r'[^a-zA-Z0-9]+', '_', ascii_str).strip('_').lower()
+        
+        # Truncate to 35 characters for readable clean filenames
+        if len(slug) > 35:
+            slug = slug[:35].rstrip('_')
+            
+        if not slug:
+            slug = "image"
+
+    # Short hash based on prompt text to guarantee uniqueness
+    hash_suffix = hashlib.md5(f"{prompt}_{index}_{time.time()}".encode('utf-8')).hexdigest()[:4]
+    
+    return f"{index:03d}_{slug}_{hash_suffix}.{extension}"
+
 class BatchProcessor:
     """
     Batch Automation Processor for reading prompt files (CSV/TXT/JSON),
-    executing parallel requests, downloading images to disk, and generating reports.
+    executing parallel requests, downloading images with Smart Naming to disk, and generating reports.
     """
     
     def __init__(self, cookies_str=None, output_dir="./images", threads=10, aspect_ratio="16:9"):
@@ -37,7 +73,6 @@ class BatchProcessor:
                 for idx, row in enumerate(reader):
                     prompt = row.get("Prompt") or row.get("prompt") or row.get("STT") or ""
                     if not prompt:
-                        # Fallback to first non-empty column
                         values = list(row.values())
                         prompt = values[1] if len(values) > 1 else values[0] if values else ""
                     
@@ -74,12 +109,13 @@ class BatchProcessor:
         return items
 
     def process_single_item(self, item, start_index=1, log_callback=None):
-        """Process a single prompt item: API request + download image"""
+        """Process a single prompt item: API request + download image with Smart Naming"""
         if self.stop_requested:
             return {"id": item["id"], "status": "stopped", "error": "User cancelled"}
 
         idx = item["id"]
         prompt = item["prompt"]
+        item_order = start_index + idx - 1
         
         if log_callback:
             log_callback(f"🚀 [Luồng] Đang xử lý #{idx}: '{prompt[:40]}...'", "info")
@@ -108,16 +144,16 @@ class BatchProcessor:
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
 
-        # Download Generated Image
-        img_filename = f"img_{start_index + idx - 1:03d}_{int(time.time())}.png"
-        save_path = os.path.join(self.output_dir, img_filename)
+        # Smart Image Naming
+        smart_filename = generate_smart_filename(prompt, item_order, extension="png")
+        save_path = os.path.join(self.output_dir, smart_filename)
         
         target = result.get("image_url") or result.get("image_b64")
         dl_success = self.client.download_image(target, save_path)
 
         if dl_success:
             if log_callback:
-                log_callback(f"✅ [Tải về thành công] #{idx} -> {save_path}", "success")
+                log_callback(f"✅ [Tải thành công] #{idx} -> {smart_filename}", "success")
             return {
                 "id": idx,
                 "prompt": prompt,
@@ -235,7 +271,7 @@ if __name__ == "__main__":
             print(f"Progress: {curr}/{total} ({pct}%) completed...")
 
         results = processor.run_batch(items, progress_callback=cli_progress, log_callback=cli_log)
-        print("\n[Done] All images generated and downloaded successfully!")
+        print("\n[Done] All images generated and downloaded successfully with Smart Naming!")
 
     except Exception as e:
         print(f"[Fatal Error] {e}")
